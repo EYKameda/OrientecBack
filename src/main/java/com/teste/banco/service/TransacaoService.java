@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import com.teste.banco.dto.TransacaoDTO;
@@ -23,10 +25,12 @@ public class TransacaoService {
 
     private final TransacaoRepository transacaoRepository;
     private final ContaRepository contaRepository;
+    private final AuditService auditService;
 
-    public TransacaoService(TransacaoRepository transacaoRepository, ContaRepository contaRepository) {
+    public TransacaoService(TransacaoRepository transacaoRepository, ContaRepository contaRepository, AuditService auditService) {
         this.transacaoRepository = transacaoRepository;
         this.contaRepository = contaRepository;
+        this.auditService = auditService;
     }
 
     public List<TransacaoDTO> getAllTransacao() {
@@ -61,14 +65,18 @@ public class TransacaoService {
         transacao.setValor(valor);
         transacao.setDataHora(LocalDateTime.now());
         transacao.setTipo(tipo);
-        transacaoRepository.save(transacao);
+        transacao = transacaoRepository.save(transacao);
+        String user = getCurrentUser();
+        auditService.logDataChange("CREATE", "Transacao", transacao.getId().toString(), user, "Transação realizada: " + tipo, null);
     }
     
     public Transacao save(Transacao transacao) {
         setConta(transacao);
         updateValor(transacao);
         contaRepository.save(transacao.getConta());
-        transacaoRepository.save(transacao);
+        transacao = transacaoRepository.save(transacao);
+        String user = getCurrentUser();
+        auditService.logDataChange("CREATE", "Transacao", transacao.getId().toString(), user, "Transação salva: " + transacao.getTipo(), null);
         return (transacao);
     }
 
@@ -99,5 +107,10 @@ public class TransacaoService {
         return transacaoRepository.findAllTransacaoByContaId(contaId).stream()
             .map(TransacaoMapper::toDTO)
             .collect(Collectors.toList());
+    }
+
+    private String getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null ? auth.getName() : "unknown";
     }
 }
