@@ -1,6 +1,8 @@
 package com.teste.banco.service;
 
 import org.springframework.dao.DataAccessException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import com.teste.banco.dto.ClienteDTO;
@@ -14,9 +16,11 @@ import com.teste.banco.repository.ClienteRepository;
 public class ClienteService {
 
     private final ClienteRepository clienteRepository;
-  
-    public ClienteService(ClienteRepository clienteRepository) {
+    private final AuditService auditService;
+
+    public ClienteService(ClienteRepository clienteRepository, AuditService auditService) {
         this.clienteRepository = clienteRepository;
+        this.auditService = auditService;
     }
 
     public ClienteDTO salvarCliente(Cliente cliente) {
@@ -25,6 +29,8 @@ public class ClienteService {
         }
         try {
             cliente = clienteRepository.save(cliente);
+            String user = getCurrentUser();
+            auditService.logDataChange("CREATE", "Cliente", cliente.getId().toString(), user, "Cliente criado", null);
             return ClienteMapper.toDTO(cliente);
         } catch (DataAccessException e) {
             throw new InternalError("Erro ao salvar a cliente: " + e.getMessage(), e);
@@ -43,7 +49,16 @@ public class ClienteService {
     }
 
     public Cliente updatCliente (Cliente cliente){
-        return clienteRepository.save(cliente);
+        Cliente existing = clienteRepository.findById(cliente.getId()).orElse(null);
+        cliente = clienteRepository.save(cliente);
+        String user = getCurrentUser();
+        auditService.logDataChange("UPDATE", "Cliente", cliente.getId().toString(), user, "Cliente atualizado", null);
+        return cliente;
+    }
+
+    private String getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null ? auth.getName() : "unknown";
     }
 
 }

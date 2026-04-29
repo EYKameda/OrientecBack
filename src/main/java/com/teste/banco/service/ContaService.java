@@ -3,6 +3,8 @@ package com.teste.banco.service;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +22,12 @@ public class ContaService {
 
     private final ContaRepository contaRepository;
     private final ClienteService clienteService;
+    private final AuditService auditService;
 
-    public ContaService(ContaRepository contaRepository, ClienteService clienteService) {
+    public ContaService(ContaRepository contaRepository, ClienteService clienteService, AuditService auditService) {
         this.contaRepository = contaRepository;
         this.clienteService = clienteService;
+        this.auditService = auditService;
     }
 
     public ContaDTO findById(Long id) {
@@ -48,7 +52,9 @@ public class ContaService {
         validarParametros(idCliente, numeroConta);
         Cliente cliente = obterCliente(idCliente);
         Conta conta = newConta(numeroConta,cliente);
-            contaRepository.save(conta);
+            conta = contaRepository.save(conta);
+            String user = getCurrentUser();
+            auditService.logDataChange("CREATE", "Conta", conta.getId().toString(), user, "Conta criada", null);
             return ContaMapper.toDTO(conta);
         } catch (Exception e) {
             throw new ContaNotFoundException(e.getMessage());
@@ -98,5 +104,10 @@ public class ContaService {
             throw new IllegalArgumentException("Não existe cliente associado a Conta de ID: "+ contaId);
         }       
         return ClienteMapper.toDTO(conta.getClientes().get(0));
+    }
+
+    private String getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null ? auth.getName() : "unknown";
     }
 }
